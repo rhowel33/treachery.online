@@ -336,6 +336,9 @@ public partial class GameHub
         var game = managedGame.Game;
         var botsActAsHosts = game.Participation.Hosts.Count == 0 && game.NumberOfObservers > 0;
         
+        // Find the gameId for this managed game
+        var gameId = RunningGamesByGameId.FirstOrDefault(kvp => kvp.Value == managedGame).Key ?? "";
+        
         if (!game.Participation.BotsArePaused && game.CurrentPhase > Phase.AwaitingPlayers)
         {
             var bots = Deck<Player>.Randomize(game.Players.Where(p => p.IsBot));
@@ -343,7 +346,7 @@ public partial class GameHub
 
             foreach (var bot in bots)
             {
-                var classicBot = GetOrInitializeBot(managedGame, bot);
+                var classicBot = GetOrInitializeBot(managedGame, bot, gameId);
                 var evt = classicBot.DetermineHighestPriorityInPhaseAction(eventsPerBot[bot.Seat]);
                 if (evt == null) continue;
                 await ValidateAndExecute(evt, managedGame, false);
@@ -352,7 +355,7 @@ public partial class GameHub
             
             foreach (var bot in bots)
             {
-                var classicBot = GetOrInitializeBot(managedGame, bot);
+                var classicBot = GetOrInitializeBot(managedGame, bot, gameId);
                 var evt = classicBot.DetermineHighPriorityInPhaseAction(eventsPerBot[bot.Seat]);
                 if (evt == null) continue;
                 await ValidateAndExecute(evt, managedGame, false);
@@ -361,7 +364,7 @@ public partial class GameHub
             
             foreach (var bot in bots)
             {
-                var classicBot = GetOrInitializeBot(managedGame, bot);
+                var classicBot = GetOrInitializeBot(managedGame, bot, gameId);
                 var evt = classicBot.DetermineMiddlePriorityInPhaseAction(eventsPerBot[bot.Seat]);
                 if (evt == null) continue;
                 await ValidateAndExecute(evt, managedGame, false);
@@ -370,7 +373,7 @@ public partial class GameHub
             
             foreach (var bot in bots)
             {
-                var classicBot = GetOrInitializeBot(managedGame, bot);
+                var classicBot = GetOrInitializeBot(managedGame, bot, gameId);
                 var evt = classicBot.DetermineLowPriorityInPhaseAction(eventsPerBot[bot.Seat]);
                 if (evt == null) continue;
                 await ValidateAndExecute(evt, managedGame, false);
@@ -380,7 +383,7 @@ public partial class GameHub
             if (botsActAsHosts)
                 foreach (var bot in bots)
                 {
-                    var classicBot = GetOrInitializeBot(managedGame, bot);
+                    var classicBot = GetOrInitializeBot(managedGame, bot, gameId);
                     var evt = classicBot.DetermineEndPhaseAction(eventsPerBot[bot.Seat]);
                     if (evt == null) continue;
                     await ValidateAndExecute(evt, managedGame, true);
@@ -389,11 +392,56 @@ public partial class GameHub
         }
     }
 
-    private static IBot GetOrInitializeBot(ManagedGame game, Player player)
+    private static IBot GetOrInitializeBot(ManagedGame game, Player player, string gameId = "")
     {
         if (game.Bots.TryGetValue(player.Faction, out var bot)) return bot;
         
-        bot = new ClassicBot(game.Game, player, BotParameters.GetDefaultParameters(player.Faction));
+        // Check bot configuration (can be configured via environment variables)
+        var useStructuredGemma = Environment.GetEnvironmentVariable("USE_STRUCTURED_GEMMA_BOT")?.ToLowerInvariant() == "true";
+        var useGemma = Environment.GetEnvironmentVariable("USE_GEMMA_BOT")?.ToLowerInvariant() == "true";
+        var ollamaUrl = Environment.GetEnvironmentVariable("OLLAMA_URL") ?? "http://localhost:11434";
+        var ollamaModel = Environment.GetEnvironmentVariable("OLLAMA_MODEL") ?? "gemma3:latest";
+        
+        if (useStructuredGemma)
+        {
+            try
+            {
+                bot = new StructuredGemmaBot(game.Game, player, BotParameters.GetDefaultParameters(player.Faction), ollamaUrl, ollamaModel, gameId);
+                Console.WriteLine($"Initialized Structured GemmaBot for {player.Faction} using {ollamaModel} at {ollamaUrl}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to initialize Structured GemmaBot for {player.Faction}: {ex.Message}. Falling back to PhaseAware GemmaBot.");
+                try
+                {
+                    bot = new PhaseAwareGemmaBot(game.Game, player, BotParameters.GetDefaultParameters(player.Faction), ollamaUrl, ollamaModel, gameId);
+                    Console.WriteLine($"Initialized PhaseAware GemmaBot fallback for {player.Faction}");
+                }
+                catch (Exception ex2)
+                {
+                    Console.WriteLine($"Failed to initialize PhaseAware GemmaBot fallback for {player.Faction}: {ex2.Message}. Using ClassicBot.");
+                    bot = new ClassicBot(game.Game, player, BotParameters.GetDefaultParameters(player.Faction));
+                }
+            }
+        }
+        else if (useGemma)
+        {
+            try
+            {
+                bot = new PhaseAwareGemmaBot(game.Game, player, BotParameters.GetDefaultParameters(player.Faction), ollamaUrl, ollamaModel, gameId);
+                Console.WriteLine($"Initialized PhaseAware GemmaBot for {player.Faction} using {ollamaModel} at {ollamaUrl}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to initialize PhaseAware GemmaBot for {player.Faction}: {ex.Message}. Falling back to ClassicBot.");
+                bot = new ClassicBot(game.Game, player, BotParameters.GetDefaultParameters(player.Faction));
+            }
+        }
+        else
+        {
+            bot = new ClassicBot(game.Game, player, BotParameters.GetDefaultParameters(player.Faction));
+        }
+        
         game.Bots.Add(player.Faction, bot);
         return bot;
     }
