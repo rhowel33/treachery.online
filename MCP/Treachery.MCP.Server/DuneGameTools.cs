@@ -308,8 +308,8 @@ public class DuneGameTools
     private object AnalyzeThreatLevel(Game game, Player player)
     {
         var threats = new List<object>();
-        
-        foreach (var opponent in game.Players.Where(p => p != player && !p.Faction.IsBot))
+
+        foreach (var opponent in game.Players.Where(p => p != player && !p.IsBot))
         {
             var strongholds = game.StrongholdsControlledBy(opponent.Faction).Count();
             if (strongholds >= 2)
