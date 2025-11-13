@@ -395,45 +395,29 @@ public partial class GameHub
     private static IBot GetOrInitializeBot(ManagedGame game, Player player, string gameId = "")
     {
         if (game.Bots.TryGetValue(player.Faction, out var bot)) return bot;
-        
+
         // Check bot configuration (can be configured via environment variables)
-        var useStructuredGemma = Environment.GetEnvironmentVariable("USE_STRUCTURED_GEMMA_BOT")?.ToLowerInvariant() == "true";
-        var useGemma = Environment.GetEnvironmentVariable("USE_GEMMA_BOT")?.ToLowerInvariant() == "true";
+        var useGptMcp = Environment.GetEnvironmentVariable("USE_GPT_MCP_BOT")?.ToLowerInvariant() == "true";
         var ollamaUrl = Environment.GetEnvironmentVariable("OLLAMA_URL") ?? "http://localhost:11434";
-        var ollamaModel = Environment.GetEnvironmentVariable("OLLAMA_MODEL") ?? "gemma3:latest";
-        
-        if (useStructuredGemma)
+        var mcpServerPath = Environment.GetEnvironmentVariable("MCP_SERVER_PATH") ??
+            "/home/user/treachery.online/MCP/Treachery.MCP.Server/bin/Release/net9.0/Treachery.MCP.Server.dll";
+
+        if (useGptMcp)
         {
             try
             {
-                bot = new StructuredGemmaBot(game.Game, player, BotParameters.GetDefaultParameters(player.Faction), ollamaUrl, ollamaModel, gameId);
-                Console.WriteLine($"Initialized Structured GemmaBot for {player.Faction} using {ollamaModel} at {ollamaUrl}");
+                bot = new GptMcpBot(
+                    game.Game,
+                    player,
+                    BotParameters.GetDefaultParameters(player.Faction),
+                    mcpServerPath,
+                    ollamaUrl);
+                Console.WriteLine($"Initialized GptMcpBot for {player.Faction} using gpt-oss:20b at {ollamaUrl}");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Failed to initialize Structured GemmaBot for {player.Faction}: {ex.Message}. Falling back to PhaseAware GemmaBot.");
-                try
-                {
-                    bot = new PhaseAwareGemmaBot(game.Game, player, BotParameters.GetDefaultParameters(player.Faction), ollamaUrl, ollamaModel, gameId);
-                    Console.WriteLine($"Initialized PhaseAware GemmaBot fallback for {player.Faction}");
-                }
-                catch (Exception ex2)
-                {
-                    Console.WriteLine($"Failed to initialize PhaseAware GemmaBot fallback for {player.Faction}: {ex2.Message}. Using ClassicBot.");
-                    bot = new ClassicBot(game.Game, player, BotParameters.GetDefaultParameters(player.Faction));
-                }
-            }
-        }
-        else if (useGemma)
-        {
-            try
-            {
-                bot = new PhaseAwareGemmaBot(game.Game, player, BotParameters.GetDefaultParameters(player.Faction), ollamaUrl, ollamaModel, gameId);
-                Console.WriteLine($"Initialized PhaseAware GemmaBot for {player.Faction} using {ollamaModel} at {ollamaUrl}");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Failed to initialize PhaseAware GemmaBot for {player.Faction}: {ex.Message}. Falling back to ClassicBot.");
+                Console.WriteLine($"Failed to initialize GptMcpBot for {player.Faction}: {ex.Message}. Falling back to ClassicBot.");
+                Console.WriteLine($"Stack trace: {ex.StackTrace}");
                 bot = new ClassicBot(game.Game, player, BotParameters.GetDefaultParameters(player.Faction));
             }
         }
@@ -441,7 +425,7 @@ public partial class GameHub
         {
             bot = new ClassicBot(game.Game, player, BotParameters.GetDefaultParameters(player.Faction));
         }
-        
+
         game.Bots.Add(player.Faction, bot);
         return bot;
     }

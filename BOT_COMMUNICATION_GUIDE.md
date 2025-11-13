@@ -1,10 +1,13 @@
 # Human-Bot Alliance Communication Guide
 
+> **⚠️ NOTE**: This feature is currently **disabled** in GptMcpBot. It will be re-enabled in a future update.
+> For now, bots make autonomous decisions without human ally instructions.
+
 This guide explains how to communicate with your bot ally using chat commands to coordinate strategy in the Dune board game.
 
 ## 🤝 How It Works
 
-When you're allied with a bot, you can send strategic instructions through private chat messages. The GemmaBot will understand your commands and incorporate them into its decision-making process.
+When you're allied with a bot, you can send strategic instructions through private chat messages. The bot (when this feature is enabled) will understand your commands and incorporate them into its decision-making process.
 
 ## 📝 Basic Command Format
 
@@ -84,7 +87,9 @@ Simply send a private message to your bot ally using natural language commands. 
 
 ## 🔧 Setup Requirements
 
-1. **Enable GemmaBot**: Set environment variable `USE_GEMMA_BOT=true`
+> **Note**: Currently disabled. When re-enabled:
+
+1. **Enable GptMcpBot**: Set environment variable `USE_GPT_MCP_BOT=true`
 2. **Form Alliance**: You must be allied with the bot player
 3. **Private Chat**: Send instructions via private message to bot ally only
 

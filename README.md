@@ -19,6 +19,14 @@ Each action a player can do in the game, like selecting a traitor or finalizing 
 6. The event has now been executed and all clients are in sync!
 
 # User Interface
-Namespace treachery.online.Client holds the UI of the application. It is a Blazor Webassembly app running in the Browser. It is basically a view on the client's local Game object and changes with it. 
+Namespace treachery.online.Client holds the UI of the application. It is a Blazor Webassembly app running in the Browser. It is basically a view on the client's local Game object and changes with it.
 
 When playing a game, the UI is divided into 3 sections: the Map, an Actions section showing the GameEvents that can be executed by the player based on the local Game state and an Information-section, containing what is behing the player shield and the Log. An Observer has the same sections, except for the Actions section.
+
+# Bot System
+Namespace Treachery.Bots contains AI bots that can control computer players. The game supports multiple bot implementations:
+
+- **ClassicBot** - Fast, deterministic rule-based AI (default)
+- **GptMcpBot** - LLM-enhanced bot using gpt-oss:20b via Ollama with MCP tool calling
+
+For detailed documentation on bot configuration, usage, and development, see **[BOT_SYSTEM_README.md](BOT_SYSTEM_README.md)**.
