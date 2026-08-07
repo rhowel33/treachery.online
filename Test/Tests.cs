@@ -524,7 +524,7 @@ public class Tests
         foreach (var player in game.Players)
         {
             var bot = botForPlayers[player.Faction];
-            var evt = bot.DetermineHighestPriorityInPhaseAction(botEvents[player]);
+            var evt = bot.DetermineHighestPriorityInPhaseAction(botEvents[player]).GetAwaiter().GetResult();
 
             if (evt != null)
             {
@@ -536,7 +536,7 @@ public class Tests
         foreach (var player in game.Players)
         {
             var bot = botForPlayers[player.Faction];
-            var evt = bot.DetermineHighPriorityInPhaseAction(botEvents[player]);
+            var evt = bot.DetermineHighPriorityInPhaseAction(botEvents[player]).GetAwaiter().GetResult();
 
             if (evt != null)
             {
@@ -548,7 +548,7 @@ public class Tests
         foreach (var player in game.Players)
         {
             var bot = botForPlayers[player.Faction];
-            var evt = bot.DetermineMiddlePriorityInPhaseAction(botEvents[player]);
+            var evt = bot.DetermineMiddlePriorityInPhaseAction(botEvents[player]).GetAwaiter().GetResult();
 
             if (evt != null)
             {
@@ -560,7 +560,7 @@ public class Tests
         foreach (var player in game.Players)
         {
             var bot = botForPlayers[player.Faction];
-            var evt = bot.DetermineLowPriorityInPhaseAction(botEvents[player]);
+            var evt = bot.DetermineLowPriorityInPhaseAction(botEvents[player]).GetAwaiter().GetResult();
 
             if (evt != null)
             {
@@ -572,7 +572,7 @@ public class Tests
         foreach (var player in game.Players)
         {
             var bot = botForPlayers[player.Faction];
-            var evt = bot.DetermineEndPhaseAction(botEvents[player]);
+            var evt = bot.DetermineEndPhaseAction(botEvents[player]).GetAwaiter().GetResult();
 
             if (evt != null)
             {

@@ -35,7 +35,7 @@ public partial class ClassicBot(Game game, Player player, BotParameters param) :
         Player = player;
     }
 
-    public GameEvent? DetermineHighestPriorityInPhaseAction(List<Type> events)
+    public Task<GameEvent?> DetermineHighestPriorityInPhaseAction(List<Type> events)
     {
         GameEvent? action = null;
 
@@ -43,21 +43,21 @@ public partial class ClassicBot(Game game, Player player, BotParameters param) :
             Do(DetermineDealCancelled, ref action, events) ||
             Do(DetermineAcceptOrCancelPurpleRevival, ref action, events) ||
             Do(DetermineThoughtAnswered, ref action, events) ||
-            Do(DetermineThought, ref action, events)) return action;
+            Do(DetermineThought, ref action, events)) return Task.FromResult(action);
 
-        return null;
+        return Task.FromResult<GameEvent?>(null);
     }
 
-    public GameEvent? DetermineHighPriorityInPhaseAction(List<Type> events)
+    public Task<GameEvent?> DetermineHighPriorityInPhaseAction(List<Type> events)
     {
         GameEvent? action = null;
 
-        if (Do(DetermineVoice, ref action, events)) return action;
+        if (Do(DetermineVoice, ref action, events)) return Task.FromResult(action);
 
-        return null;
+        return Task.FromResult<GameEvent?>(null);
     }
 
-    public GameEvent? DetermineMiddlePriorityInPhaseAction(List<Type> events)
+    public Task<GameEvent?> DetermineMiddlePriorityInPhaseAction(List<Type> events)
     {
         GameEvent? action = null;
 
@@ -78,12 +78,12 @@ public partial class ClassicBot(Game game, Player player, BotParameters param) :
             Do(DeterminePlanetology, ref action, events) ||
             Do(DeterminePrescience, ref action, events) ||
             Do(DetermineCardGiven, ref action, events) ||
-            Do(DetermineKarmaShipmentPrevention, ref action, events)) return action;
+            Do(DetermineKarmaShipmentPrevention, ref action, events)) return Task.FromResult(action);
 
-        return null;
+        return Task.FromResult<GameEvent?>(null);
     }
 
-    public GameEvent? DetermineLowPriorityInPhaseAction(List<Type> events)
+    public Task<GameEvent?> DetermineLowPriorityInPhaseAction(List<Type> events)
     {
         GameEvent? action = null;
 
@@ -195,20 +195,20 @@ public partial class ClassicBot(Game game, Player player, BotParameters param) :
             Do(DetermineWhiteAnnouncesAuction, ref action, events) ||
             Do(DetermineWhiteSpecifiesAuction, ref action, events) ||
             Do(DetermineWhiteKeepsUnsoldCard, ref action, events) ||
-            Do(DetermineWhiteRevealedNoField, ref action, events)) return action;
+            Do(DetermineWhiteRevealedNoField, ref action, events)) return Task.FromResult(action);
 
-        return null;
+        return Task.FromResult<GameEvent?>(null);
     }
 
 
-    public GameEvent? DetermineEndPhaseAction(List<Type> events)
+    public Task<GameEvent?> DetermineEndPhaseAction(List<Type> events)
     {
         GameEvent? action = null;
 
-        if (Do(DetermineEndPhase, ref action, events)) return action;
+        if (Do(DetermineEndPhase, ref action, events)) return Task.FromResult(action);
 
 
-        return null;
+        return Task.FromResult<GameEvent?>(null);
     }
 
     private EndPhase DetermineEndPhase()

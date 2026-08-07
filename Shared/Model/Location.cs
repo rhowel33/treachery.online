@@ -13,15 +13,17 @@ public class Location(int id) : IIdentifiable
 {
     public virtual int Sector { get; set; }
 
+    private readonly Territory _territory = null!;
+
     public required Territory Territory
     {
-        get;
+        get => _territory;
         init
         {
-            field = value;
-            field.AddLocation(this);
+            _territory = value;
+            _territory.AddLocation(this);
         }
-    } = null!;
+    }
 
     public virtual bool Visible => true;
 

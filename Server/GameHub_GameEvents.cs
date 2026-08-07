@@ -330,7 +330,7 @@ public partial class GameHub
             foreach (var bot in bots)
             {
                 var classicBot = GetOrInitializeBot(managedGame, bot);
-                var evt = classicBot.DetermineHighestPriorityInPhaseAction(eventsPerBot[bot.Seat]);
+                var evt = await classicBot.DetermineHighestPriorityInPhaseAction(eventsPerBot[bot.Seat]);
                 if (evt == null) continue;
                 await ValidateAndExecute(evt, managedGame, false);
                 return;
@@ -339,7 +339,7 @@ public partial class GameHub
             foreach (var bot in bots)
             {
                 var classicBot = GetOrInitializeBot(managedGame, bot);
-                var evt = classicBot.DetermineHighPriorityInPhaseAction(eventsPerBot[bot.Seat]);
+                var evt = await classicBot.DetermineHighPriorityInPhaseAction(eventsPerBot[bot.Seat]);
                 if (evt == null) continue;
                 await ValidateAndExecute(evt, managedGame, false);
                 return;
@@ -348,7 +348,7 @@ public partial class GameHub
             foreach (var bot in bots)
             {
                 var classicBot = GetOrInitializeBot(managedGame, bot);
-                var evt = classicBot.DetermineMiddlePriorityInPhaseAction(eventsPerBot[bot.Seat]);
+                var evt = await classicBot.DetermineMiddlePriorityInPhaseAction(eventsPerBot[bot.Seat]);
                 if (evt == null) continue;
                 await ValidateAndExecute(evt, managedGame, false);
                 return;
@@ -357,7 +357,7 @@ public partial class GameHub
             foreach (var bot in bots)
             {
                 var classicBot = GetOrInitializeBot(managedGame, bot);
-                var evt = classicBot.DetermineLowPriorityInPhaseAction(eventsPerBot[bot.Seat]);
+                var evt = await classicBot.DetermineLowPriorityInPhaseAction(eventsPerBot[bot.Seat]);
                 if (evt == null) continue;
                 await ValidateAndExecute(evt, managedGame, false);
                 return;
@@ -367,7 +367,7 @@ public partial class GameHub
                 foreach (var bot in bots)
                 {
                     var classicBot = GetOrInitializeBot(managedGame, bot);
-                    var evt = classicBot.DetermineEndPhaseAction(eventsPerBot[bot.Seat]);
+                    var evt = await classicBot.DetermineEndPhaseAction(eventsPerBot[bot.Seat]);
                     if (evt == null) continue;
                     await ValidateAndExecute(evt, managedGame, true);
                     return;
@@ -383,7 +383,7 @@ public partial class GameHub
             return bot;
         }
         
-        bot = new ClassicBot(game.Game, player, BotParameters.GetDefaultParameters(player.Faction));
+        bot = BotFactory.CreateBot(game.Game, player, BotParameters.GetDefaultParameters(player.Faction));
         game.Bots.Add(player.Faction, bot);
         return bot;
     }

@@ -7,14 +7,16 @@
  * received a copy of the GNU General Public License along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+using System.Threading.Tasks;
+
 namespace Treachery.Shared.Model;
 
 public interface IBot
 {
-    public GameEvent? DetermineHighestPriorityInPhaseAction(List<Type> events);
-    public GameEvent? DetermineHighPriorityInPhaseAction(List<Type> events);
-    public GameEvent? DetermineMiddlePriorityInPhaseAction(List<Type> events);
-    public GameEvent? DetermineLowPriorityInPhaseAction(List<Type> events);
-    public GameEvent? DetermineEndPhaseAction(List<Type> events);
+    public Task<GameEvent?> DetermineHighestPriorityInPhaseAction(List<Type> events);
+    public Task<GameEvent?> DetermineHighPriorityInPhaseAction(List<Type> events);
+    public Task<GameEvent?> DetermineMiddlePriorityInPhaseAction(List<Type> events);
+    public Task<GameEvent?> DetermineLowPriorityInPhaseAction(List<Type> events);
+    public Task<GameEvent?> DetermineEndPhaseAction(List<Type> events);
     public void SetGameAndPlayer(Game gameGame, Player player);
 }
