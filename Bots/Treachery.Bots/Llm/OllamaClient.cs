@@ -40,7 +40,7 @@ public class OllamaClient(string baseUrl, string model)
         };
 
         if (formatSchema != null)
-            request["format"] = formatSchema;
+            request["format"] = formatSchema.DeepClone();
 
         using var body = new StringContent(request.ToJsonString(), Encoding.UTF8, "application/json");
         using var response = await Http.PostAsync($"{baseUrl.TrimEnd('/')}/api/chat", body);
