@@ -38,7 +38,7 @@
 
                     @foreach (var p in Game.Players.Where(p => p != Client.Player))
                     {
-                        var name = Game.GetPlayerName(p);
+                        var name = DisplayName(p);
                         <option style="color:@Client.CurrentSkin.GetFactionColor(p.Faction);background-color:white" value="@name">@name</option>
                     }
 
@@ -93,7 +93,7 @@
         if (ShowGameChat)
         {
             var firstChatTarget = Game.Players.FirstOrDefault(p => p != Client.Player);
-            _selectedPlayerName = firstChatTarget != null ? Game.GetPlayerName(firstChatTarget) : LabelAllPlayersInGame;
+            _selectedPlayerName = firstChatTarget != null ? DisplayName(firstChatTarget) : LabelAllPlayersInGame;
         }
         else
         {
@@ -132,14 +132,25 @@
         }
         else {
 
-            var targetUserId = target is LabelGlobalChat or LabelAllPlayersInGame ? -1 : Game.GetUserIdByName(target);
             await Client.SendChatMessage(new GameChatMessage
             {
                 SourceUserId = Client.UserId!.Value,
-                TargetUserId = targetUserId,
+                TargetUserId = ResolveTargetUserId(target),
                 Body = msg
             });
         }
+    }
+
+    private string DisplayName(Player p) => p.IsBot ? Client.CurrentSkin.Describe(p.Faction) + " (Bot)" : Game.GetPlayerName(p);
+
+    private Player? GetPlayerByDisplayName(string name) => Game.Players.FirstOrDefault(p => DisplayName(p) == name);
+
+    private int ResolveTargetUserId(string target)
+    {
+        if (target is LabelGlobalChat or LabelAllPlayersInGame) return -1;
+
+        var bot = GetPlayerByDisplayName(target);
+        return bot is { IsBot: true } ? Game.BotUserId(bot) : Game.GetUserIdByName(target);
     }
 
     private string Placeholder => "Chat to " + _selectedPlayerName + "...";
@@ -151,7 +162,7 @@
             if (Game.CurrentPhase < Phase.SelectingFactions || _selectedPlayerName is null)
                 return "white";
 
-            var p = Game.GetPlayerByName(_selectedPlayerName);
+            var p = GetPlayerByDisplayName(_selectedPlayerName);
             return p != null ? Client.CurrentSkin.GetFactionColor(p.Faction) : "red";
         }
     }

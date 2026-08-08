@@ -499,17 +499,17 @@ public class OllamaBot : IBot, IChatBot
     private readonly List<string> _chatLog = [];
     private string _notes = "";
 
-    public async Task<string?> HandleChatMessage(string sender, string message)
+    public async Task<string?> HandleChatMessage(string sender, string message, bool isPrivate)
     {
         try
         {
-            RememberChatLine($"{sender}: {message}");
+            RememberChatLine(isPrivate ? $"{sender} (PRIVATELY, only you can read this): {message}" : $"{sender} (to everyone): {message}");
 
             var schema = Schema(
                 ("reply", new JsonObject { ["type"] = "string" }),
                 ("updatedNotes", new JsonObject { ["type"] = "string" }));
 
-            var reply = await _llm.ChatAsync(SystemPrompt, [("user", DescribeChatSituation())], schema);
+            var reply = await _llm.ChatAsync(SystemPrompt, [("user", DescribeChatSituation(sender, isPrivate))], schema);
             if (reply == null) return null;
 
             var parsed = JsonNode.Parse(reply);
@@ -524,8 +524,8 @@ public class OllamaBot : IBot, IChatBot
                 return null;
             }
 
-            RememberChatLine($"You: {answer}");
-            Log($"{Skin.Describe(Faction)} says: {answer}. Notes: {_notes}");
+            RememberChatLine(isPrivate ? $"You (privately to {sender}): {answer}" : $"You (to everyone): {answer}");
+            Log($"{Skin.Describe(Faction)} says{(isPrivate ? $" privately to {sender}" : "")}: {answer}. Notes: {_notes}");
             return answer;
         }
         catch (Exception e)
@@ -541,27 +541,36 @@ public class OllamaBot : IBot, IChatBot
         if (_chatLog.Count > MaxRememberedChatMessages) _chatLog.RemoveAt(0);
     }
 
-    private string DescribeChatSituation()
+    private string DescribeChatSituation(string sender, bool isPrivate)
     {
         var strongholds = Game.Map.Territories(false)
             .Where(t => t.IsStronghold && Player.AnyForcesIn(t) > 0)
             .Select(t => Skin.Describe(t))
             .ToList();
 
+        var replyVisibility = isPrivate
+            ? $"The new message is PRIVATE, from {sender} to you alone; your reply will also be private, seen only by {sender}."
+            : "The new message was public and your reply will be PUBLIC, visible to ALL players. NEVER reveal private agreements, private conversations or secrets in a public reply.";
+
+        var allyContext = Player.HasAlly
+            ? $"Your ally is {Skin.Describe(Player.Ally)}: you win or lose together, so coordinate openly with them and weigh their requests favorably."
+            : "You have no ally yet. Private offers may lead to a valuable alliance at the next Nexus, but rivals may also be manipulating you.";
+
         return
             $"""
              You are {Skin.Describe(Faction)} in a game of Dune, turn {Game.CurrentTurn} of {Game.MaximumTurns}, {Skin.Describe(Game.CurrentMainPhase)} phase.
              You have {Player.Resources} spice, {Player.AnyForcesInReserves} forces in reserve, and forces in these strongholds: {(strongholds.Count > 0 ? string.Join(", ", strongholds) : "none")}.
-             {(Player.HasAlly ? $"Your ally is {Skin.Describe(Player.Ally)}." : "You have no ally.")}
+             {allyContext}
 
              Your private notes about agreements and plans so far: {(_notes.Length > 0 ? _notes : "none yet")}
 
-             The game chat so far (most recent last):
+             The game chat as you saw it (most recent last; lines marked PRIVATELY were secret exchanges only you and the sender know about):
              {string.Join(Environment.NewLine, _chatLog)}
 
-             A new message just arrived (the last line above). Decide how to react:
-             - "reply": what you say in the game chat, or an empty string to stay silent. Only speak when the message is addressed to you, concerns you, or offers you an opportunity; keep replies short, in character, and strategic. You may make deals, but only agree to what benefits you.
-             - "updatedNotes": rewrite your complete private notes: agreements you made, what others promised, your intentions. These notes are shown to you when making game decisions, so record anything you must remember to honor or exploit. Keep them concise.
+             A new message just arrived (the last line above). {replyVisibility}
+             Decide how to react:
+             - "reply": what you say, or an empty string to stay silent. Only speak when the message is addressed to you, concerns you, or offers you an opportunity; keep replies short, in character, and strategic. You may make deals, but only agree to what benefits you.
+             - "updatedNotes": rewrite your complete private notes: agreements you made, what others promised, your intentions. Mark which agreements are secret. These notes are shown to you when making game decisions, so record anything you must remember to honor or exploit. Keep them concise.
              """;
     }
 

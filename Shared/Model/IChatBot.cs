@@ -12,10 +12,11 @@ using System.Threading.Tasks;
 namespace Treachery.Shared.Model;
 
 /// <summary>
-/// A bot that can participate in game chat. It receives every public chat message and returns
-/// a reply, or null to stay silent. Received messages may influence its future game decisions.
+/// A bot that can participate in game chat. It receives every public chat message and any
+/// private message addressed to it, and returns a reply (private messages get private replies),
+/// or null to stay silent. Received messages may influence its future game decisions.
 /// </summary>
 public interface IChatBot
 {
-    public Task<string?> HandleChatMessage(string sender, string message);
+    public Task<string?> HandleChatMessage(string sender, string message, bool isPrivate);
 }

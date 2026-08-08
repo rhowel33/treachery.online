@@ -16,19 +16,20 @@ public class GameChatMessage : ChatMessage
     public override Message GetBodyIncludingPlayerInfo(int receivingUserId, Dictionary<int,LoggedInUserInfo> users, Game game, bool contextIsGlobal)
     {
         var sourcePlayerName = GetPlayerName(SourceUserId, users);
-        
+        var isToAll = TargetUserId == -1;
+
         if (SourceUserId == receivingUserId)
         {
             var targetFaction = GetFaction(TargetUserId, game);
-            
-            return TargetUserId < 0 ? 
-                Message.Express("You: ", Body, " ⇒ ALL") : 
+
+            return isToAll ?
+                Message.Express("You: ", Body, " ⇒ ALL") :
                 Message.Express("You: ", Body, " ⇒ ", targetFaction != Faction.None ? targetFaction : GetPlayerName(TargetUserId, users));
         }
 
         var sourceFaction = GetFaction(SourceUserId, game);
 
-        if (TargetUserId < 0)
+        if (isToAll)
         {
             return sourceFaction != Faction.None ? 
                 Message.Express(sourceFaction, " (to ALL) ", Body) : 
