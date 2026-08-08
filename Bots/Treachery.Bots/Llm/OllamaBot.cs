@@ -14,9 +14,10 @@ namespace Treachery.Bots;
 /// <summary>
 /// A bot that delegates decisions to a local LLM served by Ollama and falls back to the
 /// ClassicBot heuristics for decisions it does not (yet) handle or when the LLM fails.
-/// Currently LLM-powered: bidding, battle plans and shipment.
+/// Currently LLM-powered: bidding, battle plans, shipment and game chat. Chat conversations
+/// produce private notes (agreements, plans) that feed back into subsequent game decisions.
 /// </summary>
-public class OllamaBot : IBot
+public class OllamaBot : IBot, IChatBot
 {
     private const int MaxLlmAttempts = 3;
 
@@ -232,7 +233,7 @@ public class OllamaBot : IBot
              You have {Player.Resources} spice. {(Player.HasAlly ? $"Your ally is {Skin.Describe(Player.Ally)}." : "You have no ally.")}
              Your ally can contribute up to {allyContribution} spice and {Skin.Describe(Faction.Red)} can contribute up to {redContribution} spice, so you can pay {maxPayable} in total.
              Your hand holds {Player.TreacheryCards.Count()} of a maximum {Player.MaximumNumberOfCards} treachery cards: {hand}.
-             Decide whether to pass or how much to bid. Treachery cards (weapons, defenses, special powers) are how battles are won, and an empty or weak hand is dangerous, so cheap cards are usually worth buying even unseen. Pass when the price is getting high, your hand is already strong, or you must save spice for shipping and revival.
+             Decide whether to pass or how much to bid. Treachery cards (weapons, defenses, special powers) are how battles are won, and an empty or weak hand is dangerous, so cheap cards are usually worth buying even unseen. Pass when the price is getting high, your hand is already strong, or you must save spice for shipping and revival.{MemorySection()}
              """;
     }
 
@@ -345,7 +346,7 @@ public class OllamaBot : IBot
              Weapons you can play: {weaponList}.
              Defenses you can play: {defenseList}.
              {traitors}
-             Dial high enough to win if the battle matters, but never waste more forces than needed, and consider what the opponent is likely to dial and play.
+             Dial high enough to win if the battle matters, but never waste more forces than needed, and consider what the opponent is likely to dial and play.{MemorySection()}
              """;
     }
 
@@ -484,9 +485,95 @@ public class OllamaBot : IBot
              Possible destinations:
              {string.Join(Environment.NewLine, candidateLines)}
 
-             Ship where it helps you take or defend strongholds or collect spice, in numbers that can win the ensuing battle; do not overspend or strand small vulnerable groups, and pass if saving spice is better this turn.
+             Ship where it helps you take or defend strongholds or collect spice, in numbers that can win the ensuing battle; do not overspend or strand small vulnerable groups, and pass if saving spice is better this turn.{MemorySection()}
              """;
     }
+
+    #endregion
+
+    #region Chat
+
+    private const int MaxRememberedChatMessages = 30;
+    private const int MaxNotesLength = 2000;
+
+    private readonly List<string> _chatLog = [];
+    private string _notes = "";
+
+    public async Task<string?> HandleChatMessage(string sender, string message)
+    {
+        try
+        {
+            RememberChatLine($"{sender}: {message}");
+
+            var schema = Schema(
+                ("reply", new JsonObject { ["type"] = "string" }),
+                ("updatedNotes", new JsonObject { ["type"] = "string" }));
+
+            var reply = await _llm.ChatAsync(SystemPrompt, [("user", DescribeChatSituation())], schema);
+            if (reply == null) return null;
+
+            var parsed = JsonNode.Parse(reply);
+            var notes = parsed?["updatedNotes"]?.GetValue<string>();
+            if (!string.IsNullOrWhiteSpace(notes))
+                _notes = notes.Length <= MaxNotesLength ? notes : notes[..MaxNotesLength];
+
+            var answer = parsed?["reply"]?.GetValue<string>();
+            if (string.IsNullOrWhiteSpace(answer))
+            {
+                Log($"{Skin.Describe(Faction)} stays silent. Notes: {_notes}");
+                return null;
+            }
+
+            RememberChatLine($"You: {answer}");
+            Log($"{Skin.Describe(Faction)} says: {answer}. Notes: {_notes}");
+            return answer;
+        }
+        catch (Exception e)
+        {
+            Log($"LLM chat failed: {e.Message}");
+            return null;
+        }
+    }
+
+    private void RememberChatLine(string line)
+    {
+        _chatLog.Add(line);
+        if (_chatLog.Count > MaxRememberedChatMessages) _chatLog.RemoveAt(0);
+    }
+
+    private string DescribeChatSituation()
+    {
+        var strongholds = Game.Map.Territories(false)
+            .Where(t => t.IsStronghold && Player.AnyForcesIn(t) > 0)
+            .Select(t => Skin.Describe(t))
+            .ToList();
+
+        return
+            $"""
+             You are {Skin.Describe(Faction)} in a game of Dune, turn {Game.CurrentTurn} of {Game.MaximumTurns}, {Skin.Describe(Game.CurrentMainPhase)} phase.
+             You have {Player.Resources} spice, {Player.AnyForcesInReserves} forces in reserve, and forces in these strongholds: {(strongholds.Count > 0 ? string.Join(", ", strongholds) : "none")}.
+             {(Player.HasAlly ? $"Your ally is {Skin.Describe(Player.Ally)}." : "You have no ally.")}
+
+             Your private notes about agreements and plans so far: {(_notes.Length > 0 ? _notes : "none yet")}
+
+             The game chat so far (most recent last):
+             {string.Join(Environment.NewLine, _chatLog)}
+
+             A new message just arrived (the last line above). Decide how to react:
+             - "reply": what you say in the game chat, or an empty string to stay silent. Only speak when the message is addressed to you, concerns you, or offers you an opportunity; keep replies short, in character, and strategic. You may make deals, but only agree to what benefits you.
+             - "updatedNotes": rewrite your complete private notes: agreements you made, what others promised, your intentions. These notes are shown to you when making game decisions, so record anything you must remember to honor or exploit. Keep them concise.
+             """;
+    }
+
+    /// <summary>Included in decision prompts so chat agreements influence play.</summary>
+    private string MemorySection() =>
+        _notes.Length == 0
+            ? ""
+            : $"""
+
+               Your private notes from discussions with other players: {_notes}
+               Honor agreements you made unless breaking one clearly wins you the game.
+               """;
 
     #endregion
 

@@ -37,7 +37,22 @@ public partial class Game
         ? player.IsBot ? "Bot" : Participation.PlayerNames.GetValueOrDefault(UserIdInSeat(player.Seat), "?")
         : LegacyNames.GetValueOrDefault(player, string.Empty);
     
-    public Player? GetPlayerByUserId(int? userId) => userId is null ? null : GetPlayerBySeat(SeatOf(userId.Value));
+    /// <summary>
+    /// Bots have no real user id; chat messages sent by a bot use a synthetic negative id derived
+    /// from its seat, so existing display logic can resolve the sending faction.
+    /// </summary>
+    public const int FirstBotUserId = -100;
+
+    public static int BotUserId(Player bot) => FirstBotUserId - bot.Seat;
+
+    public static bool IsBotUserId(int userId) => userId <= FirstBotUserId;
+
+    public Player? GetPlayerByUserId(int? userId) => userId switch
+    {
+        null => null,
+        <= FirstBotUserId => GetPlayerBySeat(FirstBotUserId - userId.Value),
+        _ => GetPlayerBySeat(SeatOf(userId.Value))
+    };
 
     public Player? GetPlayerByName(string name) => Players.FirstOrDefault(p => GetPlayerName(p) == name);
 
