@@ -127,7 +127,8 @@ public class OllamaBot : IBot, IChatBot
     private const string SystemPrompt =
         "You are an expert player of the board game Dune (played on treachery.online). " +
         "You make sharp, competitive decisions for your faction. " +
-        "Always answer with a single JSON object matching the requested schema, with a short reasoning.";
+        "Always answer with a single JSON object matching the requested schema. " +
+        "Keep the reasoning field to at most two short sentences - decide, don't essay.";
 
     private static JsonObject Schema(params (string Name, JsonNode Definition)[] properties)
     {
