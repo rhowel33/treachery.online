@@ -27,7 +27,14 @@ public class OllamaClient(string baseUrl, string model)
     /// </summary>
     public async Task<string?> ChatAsync(string systemPrompt, IEnumerable<(string Role, string Content)> messages, JsonNode? formatSchema = null)
     {
-        var messageArray = new JsonArray { new JsonObject { ["role"] = "system", ["content"] = systemPrompt } };
+        // Backends that don't enforce the format schema (e.g. MLX models) still comply when the
+        // schema is spelled out in the prompt; thinking is disabled so reasoning models don't
+        // leak chain-of-thought into the (JSON) reply.
+        var system = formatSchema == null
+            ? systemPrompt
+            : $"{systemPrompt}\nRespond ONLY with a single JSON object matching this JSON schema:\n{formatSchema.ToJsonString()}";
+
+        var messageArray = new JsonArray { new JsonObject { ["role"] = "system", ["content"] = system } };
         foreach (var (role, content) in messages)
             messageArray.Add(new JsonObject { ["role"] = role, ["content"] = content });
 
@@ -35,6 +42,7 @@ public class OllamaClient(string baseUrl, string model)
         {
             ["model"] = model,
             ["stream"] = false,
+            ["think"] = false,
             ["messages"] = messageArray,
             ["options"] = new JsonObject { ["temperature"] = 0.2 }
         };

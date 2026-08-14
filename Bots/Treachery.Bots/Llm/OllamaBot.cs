@@ -90,7 +90,7 @@ public class OllamaBot : IBot, IChatBot
 
                 messages.Add(("assistant", reply));
 
-                var parsed = JsonNode.Parse(reply);
+                var parsed = ParseFirstJsonObject(reply);
                 if (parsed == null) return null;
 
                 var reasoning = parsed["reasoning"]?.GetValue<string>() ?? string.Empty;
@@ -129,6 +129,43 @@ public class OllamaBot : IBot, IChatBot
         "You make sharp, competitive decisions for your faction. " +
         "Always answer with a single JSON object matching the requested schema. " +
         "Keep the reasoning field to at most two short sentences - decide, don't essay.";
+
+    /// <summary>
+    /// Parses a reply that should be a single JSON object but may contain trailing garbage such
+    /// as a second concatenated object (seen with models whose backend doesn't enforce the schema).
+    /// </summary>
+    private static JsonNode? ParseFirstJsonObject(string text)
+    {
+        try
+        {
+            return JsonNode.Parse(text);
+        }
+        catch
+        {
+            var start = text.IndexOf('{');
+            if (start < 0) return null;
+
+            var depth = 0;
+            var inString = false;
+            var escaped = false;
+
+            for (var i = start; i < text.Length; i++)
+            {
+                var c = text[i];
+                if (escaped) { escaped = false; continue; }
+                if (c == '\\') { escaped = inString; continue; }
+                if (c == '"') inString = !inString;
+                else if (!inString && c == '{') depth++;
+                else if (!inString && c == '}' && --depth == 0)
+                {
+                    try { return JsonNode.Parse(text[start..(i + 1)]); }
+                    catch { return null; }
+                }
+            }
+
+            return null;
+        }
+    }
 
     private static JsonObject Schema(params (string Name, JsonNode Definition)[] properties)
     {
@@ -175,7 +212,10 @@ public class OllamaBot : IBot, IChatBot
             var pass = parsed["pass"]?.GetValue<bool>() ?? true;
             var amount = parsed["bidAmount"]?.GetValue<int>() ?? 0;
             return BuildBid(pass, amount);
-        });
+        },
+        evt => evt.Passed
+            ? null
+            : $"The current bid is {Game.CurrentBid?.TotalAmount ?? 0} spice, so a bid must be at least {(Game.CurrentBid?.TotalAmount ?? 0) + 1}, and you can pay at most {Player.Resources + Game.ResourcesYourAllyCanPay(Player) + Game.SpiceForBidsRedCanPay(Faction)} in total. Bid within that range or pass.");
     }
 
     private Bid BuildBid(bool pass, int amount)
@@ -513,7 +553,7 @@ public class OllamaBot : IBot, IChatBot
             var reply = await _llm.ChatAsync(SystemPrompt, [("user", DescribeChatSituation(sender, isPrivate))], schema);
             if (reply == null) return null;
 
-            var parsed = JsonNode.Parse(reply);
+            var parsed = ParseFirstJsonObject(reply);
             var notes = parsed?["updatedNotes"]?.GetValue<string>();
             if (!string.IsNullOrWhiteSpace(notes))
                 _notes = notes.Length <= MaxNotesLength ? notes : notes[..MaxNotesLength];
