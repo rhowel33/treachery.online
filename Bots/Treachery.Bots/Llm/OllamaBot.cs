@@ -201,26 +201,61 @@ public class OllamaBot : IBot, IChatBot
 
     #region Bidding
 
+    private bool IsSilentAuction => Game.CurrentAuctionType is AuctionType.BlackMarketSilent or AuctionType.WhiteSilent;
+
+    private int MaxPayableForBid => Player.Resources + Game.ResourcesYourAllyCanPay(Player) + Game.SpiceForBidsRedCanPay(Faction);
+
     private async Task<Bid?> TryDetermineBidAsync()
     {
-        var schema = Schema(
-            ("pass", Bool()),
-            ("bidAmount", IntRange(0, 100)));
+        var minBid = IsSilentAuction ? 0 : (Game.CurrentBid?.TotalAmount ?? 0) + 1;
+        var karmaCard = Bid.ValidKarmaCards(Game, Player).FirstOrDefault();
 
-        return await TryDecideAsync("bid", DescribeBiddingSituation(), schema, parsed =>
+        // When outbidding is unaffordable and Karama can't lift the limit, passing is the only
+        // sensible move; skip the LLM call entirely
+        if (!IsSilentAuction && karmaCard == null && minBid > MaxPayableForBid)
+        {
+            Log($"{Skin.Describe(Faction)} auto-passes: cannot afford to outbid");
+            return new Bid(Game, Faction) { Passed = true };
+        }
+
+        var maxBid = karmaCard != null ? Math.Max(MaxPayableForBid, Bid.ValidMaxAmount(Player, true)) : MaxPayableForBid;
+
+        var properties = new List<(string, JsonNode)>
+        {
+            ("pass", Bool()),
+            ("bidAmount", IntRange(minBid, maxBid))
+        };
+
+        if (karmaCard != null)
+        {
+            properties.Add(("useKarmaToWinOutright", Bool()));
+            properties.Add(("useKarmaToExceedSpice", Bool()));
+        }
+
+        return await TryDecideAsync("bid", DescribeBiddingSituation(minBid, karmaCard), Schema(properties.ToArray()), parsed =>
         {
             var pass = parsed["pass"]?.GetValue<bool>() ?? true;
             var amount = parsed["bidAmount"]?.GetValue<int>() ?? 0;
-            return BuildBid(pass, amount);
+            var winOutright = karmaCard != null && (parsed["useKarmaToWinOutright"]?.GetValue<bool>() ?? false);
+            var exceedSpice = karmaCard != null && (parsed["useKarmaToExceedSpice"]?.GetValue<bool>() ?? false);
+            return BuildBid(pass, amount, winOutright || exceedSpice ? karmaCard : null, winOutright);
         },
         evt => evt.Passed
             ? null
-            : $"The current bid is {Game.CurrentBid?.TotalAmount ?? 0} spice, so a bid must be at least {(Game.CurrentBid?.TotalAmount ?? 0) + 1}, and you can pay at most {Player.Resources + Game.ResourcesYourAllyCanPay(Player) + Game.SpiceForBidsRedCanPay(Faction)} in total. Bid within that range or pass.");
+            : $"A bid must be at least {minBid} and you can pay at most {MaxPayableForBid} in total{(karmaCard != null ? ", unless you use your Karama options" : "")}. Bid within that range or pass.");
     }
 
-    private Bid BuildBid(bool pass, int amount)
+    private Bid BuildBid(bool pass, int amount, TreacheryCard? karmaCard, bool karmaWinsOutright)
     {
         if (pass) return new Bid(Game, Faction) { Passed = true };
+
+        if (karmaCard != null && karmaWinsOutright)
+            return new Bid(Game, Faction) { KarmaBid = true, KarmaCard = karmaCard };
+
+        // With Karama lifting the bid limit, the whole amount is bid directly; the engine does
+        // not limit it to the player's spice
+        if (karmaCard != null)
+            return new Bid(Game, Faction) { Amount = amount, KarmaCard = karmaCard };
 
         var spiceLeftToPay = amount;
         var redContribution = Math.Min(spiceLeftToPay, Game.SpiceForBidsRedCanPay(Faction));
@@ -237,7 +272,7 @@ public class OllamaBot : IBot, IChatBot
         };
     }
 
-    private string DescribeBiddingSituation()
+    private string DescribeBiddingSituation(int minBid, TreacheryCard? karmaCard)
     {
         var allyContribution = Game.ResourcesYourAllyCanPay(Player);
         var redContribution = Game.SpiceForBidsRedCanPay(Faction);
@@ -265,6 +300,13 @@ public class OllamaBot : IBot, IChatBot
             ? "There is no bid yet."
             : $"The current bid is {Game.CurrentBid.TotalAmount} spice, made by {Skin.Describe(Game.CurrentBid.Initiator)}.";
 
+        var karmaOptions = karmaCard == null
+            ? ""
+            : $"""
+
+               You hold {DescribeCard(karmaCard)}, playable as Karama in this auction: set useKarmaToWinOutright to true to claim this card immediately without bidding, or useKarmaToExceedSpice to true to bid beyond the {maxPayable} spice you could normally pay. Karama has other powerful uses later in the game, so only spend it on a card you truly want; leave both false to bid normally.
+               """;
+
         return
             $"""
              It is turn {Game.CurrentTurn} of {Game.MaximumTurns}. You are {Skin.Describe(Faction)}.
@@ -273,6 +315,7 @@ public class OllamaBot : IBot, IChatBot
              The card being auctioned is {(cardIsKnown ? DescribeCard(Game.CardsOnAuction.Top) : "unknown to you")}.
              You have {Player.Resources} spice. {(Player.HasAlly ? $"Your ally is {Skin.Describe(Player.Ally)}." : "You have no ally.")}
              Your ally can contribute up to {allyContribution} spice and {Skin.Describe(Faction.Red)} can contribute up to {redContribution} spice, so you can pay {maxPayable} in total.
+             {(IsSilentAuction ? $"Any bid from 0 up to what you can pay is allowed." : $"To bid, you must offer at least {minBid} spice.")}{karmaOptions}
              Your hand holds {Player.TreacheryCards.Count()} of a maximum {Player.MaximumNumberOfCards} treachery cards: {hand}.
              Decide whether to pass or how much to bid. Treachery cards (weapons, defenses, special powers) are how battles are won, and an empty or weak hand is dangerous, so cheap cards are usually worth buying even unseen. Pass when the price is getting high, your hand is already strong, or you must save spice for shipping and revival.{MemorySection()}
              """;
